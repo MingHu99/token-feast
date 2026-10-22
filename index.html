@@ -32,7 +32,7 @@
      ========================================================= */
 
   const TAU = Math.PI * 2;
-  const rnd = (a, b) => a + Math.random() * (b - a);
+  const rnd = (a, b) => a + RAND() * (b - a);
   const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
   const lerp = (a, b, t) => a + (b - a) * t;
   const d2 = (x1, y1, x2, y2) => { const dx = x2 - x1, dy = y2 - y1; return dx * dx + dy * dy; };
@@ -66,6 +66,50 @@
     ideaN: 0, maxCombo: 0
   };
   try { S.best = parseInt(localStorage.getItem('tf_best') || '0', 10) || 0; } catch (e) { /* 无痕模式 */ }
+
+  /* ---------------- 每日挑战：一天一副牌 ----------------
+     用日期当种子。同一天里，第 n 个碗 / 第 n 个钩子的位置和落点对所有人都一样，
+     想比手的人不能靠重开刷新运气。普通局仍然走 Math.random。            */
+  function hashStr(str) {
+    let h = 2166136261 >>> 0;
+    for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+    return h >>> 0;
+  }
+  function mulberry32(a) {
+    return function () {
+      a = (a + 0x6D2B79F5) >>> 0;
+      let t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function todayKey() {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  let RAND = Math.random;
+  const DAILY_KEY = 'tf_daily';
+  let DAILY = {};
+  try { DAILY = JSON.parse(localStorage.getItem(DAILY_KEY) || '{}') || {}; } catch (e) { DAILY = {}; }
+  function seedFor(date) { RAND = mulberry32(hashStr('tf-' + date)); }
+  function dailyBest(date) { return DAILY[date] || null; }
+  function saveDaily(date, s2, b2) {
+    const old = DAILY[date];
+    if (old && old.s >= s2) return false;
+    DAILY[date] = { s: s2, b: b2 };
+    const ks = Object.keys(DAILY).sort();
+    while (ks.length > 30) { delete DAILY[ks.shift()]; }
+    try { localStorage.setItem(DAILY_KEY, JSON.stringify(DAILY)); } catch (e) { }
+    return true;
+  }
+  S.daily = '';        // 本局是不是每日挑战（'' = 普通局）
+  S.dailyOn = false;   // 下一次开局走不走每日
+  S.dailyDate = todayKey();
+  {
+    const dq = Q.get('daily');
+    if (dq) { S.dailyOn = true; if (dq !== '1') S.dailyDate = dq; }
+  }
 
   /* ---------------- 记录墙（本地排行榜，存在 localStorage） ---------------- */
   const LB_KEY = 'tf_scores';
@@ -566,6 +610,7 @@
         try { localStorage.setItem('tf_best', String(S.best)); } catch (e) { }
       }
       S.rank = saveLB(S.tokens, S.bowls);
+      if (S.daily) saveDaily(S.daily, S.tokens, S.bowls);
       SFX.over();
     }
   }
@@ -699,8 +744,8 @@
     if (S.spawnT <= 0 && foods.length < 16) {
       let hasIdea = false;
       for (let i = 0; i < foods.length; i++) if (foods[i].idea) { hasIdea = true; break; }
-      const wantIdea = S.bowls > 4 && !hasIdea && Math.random() < 0.055;
-      spawnFood(!wantIdea && Math.random() < 0.09 && S.bowls > 2, wantIdea);
+      const wantIdea = S.bowls > 4 && !hasIdea && RAND() < 0.055;
+      spawnFood(!wantIdea && RAND() < 0.09 && S.bowls > 2, wantIdea);
       S.spawnT = clamp(0.95 - S.playT * 0.006, 0.42, 0.95) * rnd(0.72, 1.28);
     }
     S.hookT -= dt;
@@ -1219,6 +1264,15 @@
     MUTE.x = narrow ? W - 34 : W - 42;
     MUTE.y = narrow ? H - 34 : 44;
     MUTE.r = 21;
+    if (S.daily) {
+      ctx.save();
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.font = '700 12px ' + FONT;
+      ctx.fillStyle = 'rgba(157,255,232,0.8)';
+      ctx.fillText('每日 ' + S.daily.slice(5), pad + hudW + 10, pad + 12);
+      ctx.restore();
+    }
 
     // 左上：碗 / token
     ctx.fillStyle = 'rgba(3,22,30,0.42)';
@@ -1444,6 +1498,17 @@
       ctx.fillText('本局最高：' + fmt(S.best) + ' token', cx, by + btnH + 34 * sc);
     }
 
+    // 每日挑战：T 键切换
+    const dToday = S.dailyDate || todayKey();
+    const dbf = dailyBest(dToday);
+    ctx.font = '600 ' + Math.round(14 * sc) + 'px ' + FONT;
+    ctx.fillStyle = S.dailyOn ? 'rgba(157,255,232,0.92)' : 'rgba(160,255,235,0.42)';
+    ctx.fillText(
+      (S.dailyOn ? '◆ 每日挑战 · ' : 'T 键：每日挑战 · ') + dToday.slice(5) +
+      (S.dailyOn ? ' —— 全世界同一副牌' : '（同一天同一副牌）') +
+      (dbf ? '　今日最好 ' + fmt(dbf.s) + ' / ' + dbf.b + ' 碗' : ''),
+      cx, H - 50);
+
     // 小尾巴
     ctx.font = '500 ' + Math.round(13 * sc) + 'px ' + FONT;
     ctx.fillStyle = 'rgba(160,255,235,0.38)';
@@ -1503,7 +1568,12 @@
     ctx.fillText('“' + comment + '”', cx, H * 0.3 + 214 * sc);
 
     // 本局亮点：一句话三个数，让人知道这局差在哪儿
-    const bits = ['最大连击 x' + Math.max(1, S.maxCombo)];
+    const bits = [];
+    if (S.daily) {
+      const db = dailyBest(S.daily);
+      bits.push('每日 ' + S.daily.slice(5) + (db ? '（今日最好 ' + fmt(db.s) + '）' : ''));
+    }
+    bits.push('最大连击 x' + Math.max(1, S.maxCombo));
     if (S.ideaN > 0) bits.push('灵光 ' + S.ideaN + ' 只');
     bits.push('躲钩 ' + Math.max(0, S.hookN - S.hitN) + ' 次');
     ctx.globalAlpha = fade;
@@ -1605,6 +1675,9 @@
 
   /* ---------------- 流程 ---------------- */
   function startGame() {
+    // 每日挑战：开局先按日期播种，碗和钩子的序列就定下来了
+    S.daily = S.dailyOn ? (S.dailyDate || todayKey()) : '';
+    if (S.daily) seedFor(S.daily); else RAND = Math.random;
     S.mode = 'playing';
     S.playT = 0;
     S.bowls = 0;
@@ -1629,7 +1702,7 @@
     foods.length = 0; hooks.length = 0; parts.length = 0;
     pops.length = 0; ripples.length = 0; thoughts.length = 0; danmaku.length = 0;
     resetFish();
-    for (let i = 0; i < 4; i++) spawnFood(i === 3 && Math.random() < 0.5);
+    for (let i = 0; i < 4; i++) spawnFood(i === 3 && RAND() < 0.5);
     SFX.start();
     shootDanmaku('开局！本鱼饿了三年', '#eafffb');
   }
@@ -1675,6 +1748,7 @@
       return;
     }
     if (e.code === 'KeyM') { ensureAudio(); toggleMute(); return; }
+    if (e.code === 'KeyT' && S.mode === 'title') { ensureAudio(); S.dailyOn = !S.dailyOn; tone(720, 0.06, 'triangle', 0.05, 980); return; }
     if (e.code === 'KeyF' && S.mode === 'playing') { S.auto = !S.auto; return; }
     if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].indexOf(e.code) >= 0) {
       ensureAudio();
@@ -1733,7 +1807,7 @@
       '|mode=' + S.mode + '|foods=' + foods.length + '|hooks=' + hooks.length + '|minD=' + Math.round(S.minHookD) +
       '|spawned=' + S.hookN + '|hits=' + S.hitN + '|feast=' + S.feastN + '/' + S.feastT.toFixed(1) +
       '|rank=' + S.rank + '|lb=' + LB.length + '|top=' + (LB[0] ? LB[0].s + '/' + LB[0].b : '-') +
-      '|dm=' + danmaku.length + '|idea=' + S.ideaN + '|fx=' + Math.round(fish.x) + ',' + Math.round(fish.y);
+      '|dm=' + danmaku.length + '|idea=' + S.ideaN + '|daily=' + (S.daily || '-') + '|dbest=' + ((dailyBest(S.daily || S.dailyDate) || {}).s || 0) + '|fx=' + Math.round(fish.x) + ',' + Math.round(fish.y);
   }
 
   // 自测辅助：?audit=1 把每个音效实际要发的频率录下来（不真的出声），方便无头浏览器核对
@@ -1760,6 +1834,26 @@
     fish.x = W * 0.4; fish.y = H * 0.52;
     foods.push({ x: W * 0.62, y: H * 0.44, r: 24, gold: false, idea: true, bob: 0, life: 9999, age: 0 });
     document.title = 'IDEA|ok|foods=' + foods.length + '|w=' + W;
+  }
+
+  // 自测辅助：?dailytest=1 验证「同一天同一副牌」
+  // 同一个日期播两次种，各生成 6 只碗 + 4 个钩子，比签名；再换一个日期，确认签名确实不同。
+  if (Q.has('dailytest')) {
+    const _keyA = '2026-10-22';
+    const _sig = function (k) {
+      seedFor(k);
+      foods.length = 0; hooks.length = 0; ripples.length = 0;
+      for (let i = 0; i < 6; i++) spawnFood(i % 3 === 0, i === 4);
+      for (let i = 0; i < 4; i++) spawnHook();
+      const out = foods.map(function (f) { return Math.round(f.x) + ',' + Math.round(f.y); }).join('_') + '|' +
+                  hooks.map(function (h) { return Math.round(h.x) + ',' + Math.round(h.depth); }).join('_');
+      foods.length = 0; hooks.length = 0; ripples.length = 0;
+      return out;
+    };
+    const _a = _sig(_keyA), _b = _sig(_keyA), _c = _sig('2026-10-23');
+    RAND = Math.random;
+    S.dailyOn = false;
+    document.title = 'DAILY|same=' + (_a === _b ? 1 : 0) + '|other=' + (_a === _c ? 0 : 1) + '|len=' + _a.length;
   }
 
   // 自测辅助：?thought=N 直接放一句「灵光一闪」的气泡 + 弹幕（N 是 IDEA_LINES 下标）
