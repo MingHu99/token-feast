@@ -1267,11 +1267,17 @@
     MUTE.r = 21;
     if (S.daily) {
       ctx.save();
-      ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
       ctx.font = '700 12px ' + FONT;
       ctx.fillStyle = 'rgba(157,255,232,0.8)';
-      ctx.fillText('每日 ' + S.daily.slice(5), pad + hudW + 10, pad + 12);
+      if (narrow) {
+        // 手机：右上角整块被心占了，日期挪到面板正下方（左对齐，不跟连击抢中间）
+        ctx.textAlign = 'left';
+        ctx.fillText('每日 ' + S.daily.slice(5), pad, pad + 118);
+      } else {
+        ctx.textAlign = 'left';
+        ctx.fillText('每日 ' + S.daily.slice(5), pad + hudW + 10, pad + 12);
+      }
       ctx.restore();
     }
 
