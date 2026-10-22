@@ -32,7 +32,8 @@
      ========================================================= */
 
   const TAU = Math.PI * 2;
-  const rnd = (a, b) => a + RAND() * (b - a);
+  const rnd = (a, b) => a + RAND() * (b - a);      // 吃种子：影响「牌」的随机
+  const rnd2 = (a, b) => a + Math.random() * (b - a); // 不吃种子：画面零碎（粒子、气泡、抖动、台词）
   const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
   const lerp = (a, b, t) => a + (b - a) * t;
   const d2 = (x1, y1, x2, y2) => { const dx = x2 - x1, dy = y2 - y1; return dx * dx + dy * dy; };
@@ -179,7 +180,7 @@
     // 普通白饭：连击越高音越亮，手指能听出「稳不稳」
     eat: function (combo, at) {
       const base = 560 + Math.min(380, (combo || 0) * 16);
-      tone(base + rnd(-14, 14), 0.1, 'triangle', 0.062, base * 1.5, at);
+      tone(base + rnd2(-14, 14), 0.1, 'triangle', 0.062, base * 1.5, at);
     },
     // 连击里程碑：两音上行
     combo: function (n, at) {
@@ -225,20 +226,20 @@
     const pn = Math.round(clamp((W * H) / 240000, 3, 7));
     for (let i = 0; i < pn; i++) {
       pads.push({
-        x: rnd(W * 0.08, W * 0.92),
-        y: rnd(H * 0.12, H * 0.92),
-        r: rnd(26, 54),
-        a: rnd(0, TAU),
-        speed: rnd(-0.04, 0.04)
+        x: rnd2(W * 0.08, W * 0.92),
+        y: rnd2(H * 0.12, H * 0.92),
+        r: rnd2(26, 54),
+        a: rnd2(0, TAU),
+        speed: rnd2(-0.04, 0.04)
       });
     }
     bubbles = [];
     for (let i = 0; i < 44; i++) {
-      bubbles.push({ x: rnd(0, W), y: rnd(0, H), r: rnd(1.2, 4.4), v: rnd(12, 40), ph: rnd(0, TAU) });
+      bubbles.push({ x: rnd2(0, W), y: rnd2(0, H), r: rnd2(1.2, 4.4), v: rnd2(12, 40), ph: rnd2(0, TAU) });
     }
     motes = [];
     for (let i = 0; i < 26; i++) {
-      motes.push({ x: rnd(0, W), y: rnd(0, H), r: rnd(0.6, 1.8), v: rnd(3, 10), ph: rnd(0, TAU) });
+      motes.push({ x: rnd2(0, W), y: rnd2(0, H), r: rnd2(0.6, 1.8), v: rnd2(3, 10), ph: rnd2(0, TAU) });
     }
     waterGrad = ctx.createLinearGradient(0, 0, 0, H);
     waterGrad.addColorStop(0, '#0e4f5c');
@@ -355,11 +356,11 @@
 
   function burst(x, y, n, gold) {
     for (let i = 0; i < n; i++) {
-      const a = rnd(0, TAU), sp = rnd(60, 240);
+      const a = rnd2(0, TAU), sp = rnd2(60, 240);
       parts.push({
         x: x, y: y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 40,
-        life: rnd(0.35, 0.8), max: 0.8,
-        r: rnd(1.6, 3.2), color: gold ? '#ffd964' : '#fffdf2'
+        life: rnd2(0.35, 0.8), max: 0.8,
+        r: rnd2(1.6, 3.2), color: gold ? '#ffd964' : '#fffdf2'
       });
     }
   }
@@ -400,7 +401,7 @@
       '嘿嘿，这碗归本鱼了', '才、才不是馋了', 'token…好香…',
       '再吃一碗就停（骗自己）', '嗝…还能吃'
     ];
-    let sx = fish.x + rnd(-40, 40), sy = fish.y - 58;
+    let sx = fish.x + rnd2(-40, 40), sy = fish.y - 58;
     for (let k = 0; k < 4; k++) {
       let clash = false;
       for (let i = 0; i < thoughts.length; i++) {
@@ -412,7 +413,7 @@
     }
     thoughts.push({
       x: sx, y: sy,
-      txt: lines[Math.floor(rnd(0, lines.length))],
+      txt: lines[Math.floor(rnd2(0, lines.length))],
       life: idea ? 3.2 : 2.2, max: idea ? 3.2 : 2.2
     });
   }
@@ -521,7 +522,7 @@
     }
     fish.tail += dt * (6 + sp * 0.018);
     fish.blinkT -= dt;
-    if (fish.blinkT <= 0) { fish.blink = 0.14; fish.blinkT = rnd(2.2, 5); }
+    if (fish.blinkT <= 0) { fish.blink = 0.14; fish.blinkT = rnd2(2.2, 5); }
     if (fish.blink > 0) fish.blink -= dt;
     fish.size = 1 + Math.min(0.55, S.bowls * 0.011);
   }
@@ -556,7 +557,7 @@
       hooks.length = 0;
       S.shake = Math.max(S.shake, 8);
       addThought(true);
-      shootDanmaku(IDEA_LINES[Math.floor(rnd(0, IDEA_LINES.length))], '#9dffe8', true);
+      shootDanmaku(IDEA_LINES[Math.floor(rnd2(0, IDEA_LINES.length))], '#9dffe8', true);
       SFX.gold();
     } else if (f.gold) { SFX.gold(); S.shake = Math.max(S.shake, 6); }
     else SFX.eat(S.combo);
@@ -580,10 +581,10 @@
     SFX.feast();
     shootDanmaku('加餐时间到 · 双倍 token', '#ffd964', true);
     for (let i = 0; i < 34; i++) {
-      const a = rnd(0, TAU), sp = rnd(120, 460);
+      const a = rnd2(0, TAU), sp = rnd2(120, 460);
       parts.push({
         x: fish.x, y: fish.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 60,
-        life: rnd(0.7, 1.5), max: 1.5, r: rnd(2, 4.2), color: '#ffd964'
+        life: rnd2(0.7, 1.5), max: 1.5, r: rnd2(2, 4.2), color: '#ffd964'
       });
     }
   }
@@ -623,13 +624,13 @@
       const b = bubbles[i];
       b.y -= b.v * dt;
       b.ph += dt * 1.8;
-      if (b.y < -12) { b.y = H + rnd(0, 70); b.x = rnd(0, W); }
+      if (b.y < -12) { b.y = H + rnd2(0, 70); b.x = rnd2(0, W); }
     }
     for (let i = 0; i < motes.length; i++) {
       const m = motes[i];
       m.y -= m.v * dt;
       m.ph += dt;
-      if (m.y < -8) { m.y = H + 8; m.x = rnd(0, W); }
+      if (m.y < -8) { m.y = H + 8; m.x = rnd2(0, W); }
     }
     for (let i = 0; i < pads.length; i++) pads[i].a += pads[i].speed * dt;
 
@@ -643,8 +644,8 @@
       S.feastT = Math.max(0, S.feastT - dt);
       if (Math.random() < dt * 26) {
         parts.push({
-          x: rnd(0, W), y: H + 8, vx: rnd(-16, 16), vy: rnd(-200, -120),
-          life: rnd(0.9, 1.6), max: 1.6, r: rnd(1.4, 3.2), color: '#ffe08a'
+          x: rnd2(0, W), y: H + 8, vx: rnd2(-16, 16), vy: rnd2(-200, -120),
+          life: rnd2(0.9, 1.6), max: 1.6, r: rnd2(1.4, 3.2), color: '#ffe08a'
         });
       }
     }
@@ -726,7 +727,7 @@
     if (S.auto) {
       autopilot(dt);
       S.thoughtT -= dt;
-      if (S.thoughtT <= 0) { addThought(); S.thoughtT = rnd(5, 9); }
+      if (S.thoughtT <= 0) { addThought(); S.thoughtT = rnd2(5, 9); }
     }
 
     fishPhysics(dt);
@@ -1647,7 +1648,7 @@
     drawWater();
     ctx.save();
     if (S.shake > 0.5) {
-      ctx.translate(rnd(-S.shake, S.shake) * 0.55, rnd(-S.shake, S.shake) * 0.55);
+      ctx.translate(rnd2(-S.shake, S.shake) * 0.55, rnd2(-S.shake, S.shake) * 0.55);
     }
     drawScenery();
     drawRipples();
